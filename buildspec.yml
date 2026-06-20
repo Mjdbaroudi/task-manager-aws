@@ -1,21 +1,30 @@
 version: 0.2
 
+env:
+  variables:
+    AWS_DEFAULT_REGION: "eu-north-1"
+    ECR_REPOSITORY: "task-manager"
+
 phases:
   pre_build:
     commands:
+      - echo Logging in to Amazon ECR...
       - AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-      - ECR_URI=$AWS_ACCOUNT_ID.dkr.ecr.eu-north-1.amazonaws.com/task-manager
-      - aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin $ECR_URI
+      - ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - ECR_URI=$ECR_REGISTRY/$ECR_REPOSITORY
       - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
 
   build:
     commands:
-      - docker build -t task-manager:$IMAGE_TAG .
-      - docker tag task-manager:$IMAGE_TAG $ECR_URI:$IMAGE_TAG
-      - docker tag task-manager:$IMAGE_TAG $ECR_URI:latest
+      - echo Building Docker image...
+      - docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+      - docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_URI:$IMAGE_TAG
+      - docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_URI:latest
 
   post_build:
     commands:
+      - echo Pushing Docker images...
       - docker push $ECR_URI:$IMAGE_TAG
       - docker push $ECR_URI:latest
       - printf '[{"name":"task-manager","imageUri":"%s"}]' "$ECR_URI:$IMAGE_TAG" > imagedefinitions.json
