@@ -1,0 +1,37 @@
+services:
+  database:
+    image: postgres:16-alpine
+    container_name: task-manager-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: taskmanager
+      POSTGRES_USER: taskmanager
+      POSTGRES_PASSWORD: local-development-password
+    volumes:
+      - task-manager-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskmanager -d taskmanager"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    container_name: task-manager-api
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      PORT: "3000"
+      DB_HOST: database
+      DB_PORT: "5432"
+      DB_NAME: taskmanager
+      DB_USER: taskmanager
+      DB_PASSWORD: local-development-password
+      DB_SSL: "false"
+    depends_on:
+      database:
+        condition: service_healthy
+
+volumes:
+  task-manager-postgres-data:
